@@ -1,0 +1,9 @@
+# .cmd 必须保持 CRLF 原样存进仓库：用网页下载 ZIP 时也要是 CRLF，否则 cmd 解析标签/括号块会出错
+*.cmd -text
+*.ps1 -text
+
+# 文本文件统一 LF
+*.md text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+LICENSE text eol=lf

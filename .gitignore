@@ -1,0 +1,12 @@
+# 代理运行日志（安装后生成在 C:\ProgramData\DNSTCPProxy，不在仓库里）
+*.log
+
+# 本地下载的安装包 / 临时探测脚本
+*.exe
+_probe_*.js
+_dl_*.js
+
+# 系统
+Thumbs.db
+desktop.ini
+.DS_Store
