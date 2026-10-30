@@ -10,3 +10,6 @@ _dl_*.js
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# 构建输出（exe 与打包产物不提交，走 Releases）
+dist/
