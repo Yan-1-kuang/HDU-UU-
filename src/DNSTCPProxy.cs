@@ -95,6 +95,124 @@ static class Program
         if (cmd == "status") return DoStatus();
         if (cmd == "version" || cmd == "-v" || cmd == "--version") { Console.WriteLine("DNSTCPProxy " + Version); return 0; }
 
+        // 双击运行（无参数）= 交互菜单
+        if (rawArgs.Length == 0) return RunMenu();
+
+        PrintHelp();
+        return 0;
+    }
+
+    // ---------------------------------------------------------------- 双击菜单
+
+    static bool TaskExists()
+    {
+        return Run("schtasks.exe", "/query /tn " + TaskName, true).ExitCode == 0;
+    }
+
+    static bool IsListening(int port)
+    {
+        try
+        {
+            var ns = Run("netstat.exe", "-ano -p UDP", true);
+            foreach (var line in ns.Output.Split('\n'))
+            {
+                var t = line.Trim();
+                if (!t.StartsWith("UDP")) continue;
+                var parts = t.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 2 && parts[1].EndsWith(":" + port)) return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    static int RunMenu()
+    {
+        bool admin = IsAdmin();
+        while (true)
+        {
+            try { Console.Clear(); } catch { }
+            Console.WriteLine();
+            Console.WriteLine("  DNSTCPProxy " + Version + "   校园网 DNS 污染绕过（DNS over TCP）");
+            Console.WriteLine("  " + new string('=', 54));
+
+            bool installed = TaskExists();
+            bool running = IsListening(DefaultPort);
+            if (installed && running) Say("  状态：已安装，代理正在运行（127.0.0.1:" + DefaultPort + "）");
+            else if (installed) Say("  状态：已安装，但代理没在运行（可重新安装）");
+            else Say("  状态：未安装");
+
+            if (!admin) Say("  权限：普通用户（选项 1 / 3 会弹 UAC 提权）");
+            Say("  日志： " + (_logPath == null ? "(不可写)" : _logPath));
+            Console.WriteLine();
+            Say("    1   安装并启用");
+            Say("    2   检查状态（只读）");
+            Say("    3   卸载并恢复网络设置");
+            Say("    0   退出");
+            Console.WriteLine();
+            Console.Write("  请选择 [1/2/3/0]: ");
+
+            string line;
+            try { line = Console.ReadLine(); } catch { return 0; }
+            if (line == null) return 0;
+            line = line.Trim().ToLowerInvariant();
+
+            if (line == "0" || line == "") return 0;
+
+            if (line == "1")
+            {
+                if (admin) DoInstall();
+                else return RequireAdmin("install", DoInstall);
+            }
+            else if (line == "2")
+            {
+                DoStatus();
+            }
+            else if (line == "3")
+            {
+                if (admin) DoUninstall();
+                else return RequireAdmin("uninstall", DoUninstall);
+            }
+            else
+            {
+                Say("  无效输入，请按 1 / 2 / 3 / 0。");
+            }
+
+            Console.WriteLine();
+            Console.Write("  按回车返回菜单 ...");
+            try { if (Console.ReadLine() == null) return 0; } catch { return 0; }
+        }
+    }
+
+    static int InteractiveInstall()
+    {
+        if (Console.IsInputRedirected) { PrintHelp(); return 0; }
+
+        Console.WriteLine("DNSTCPProxy " + Version + " - 用 DNS over TCP 绕过 UDP 53 投毒");
+        Console.WriteLine();
+        Console.WriteLine("即将安装，会做这几件事：");
+        Console.WriteLine("  · 代理监听 127.0.0.1:53，查询经 TCP 53 转发到 " + DefaultUpstream + ":53");
+        Console.WriteLine("  · 把网卡 DNS 改为 127.0.0.1，备用 " + FallbackDns);
+        Console.WriteLine("  · 创建开机自启计划任务 " + TaskName + "（SYSTEM，最高权限）");
+        Console.WriteLine("  · 需要管理员权限，下一步会弹 UAC");
+        Console.WriteLine();
+        Console.WriteLine("随时可运行  DNSTCPProxy.exe uninstall  完全撤销。");
+        Console.WriteLine();
+        Console.Write("开始安装？[Y/n] ");
+
+        bool yes;
+        try
+        {
+            var k = Console.ReadKey(true);
+            Console.WriteLine();
+            yes = k.Key == ConsoleKey.Enter || k.KeyChar == 'y' || k.KeyChar == 'Y';
+        }
+        catch { Console.WriteLine(); yes = false; }
+
+        if (yes) return RequireAdmin("install", DoInstall);
+
+        Console.WriteLine("已取消，没有改动系统。下面是可以用的命令：");
+        Console.WriteLine();
         PrintHelp();
         return 0;
     }
@@ -117,6 +235,8 @@ static class Program
         Console.WriteLine();
         Console.WriteLine("安装后：代理监听 127.0.0.1:53，网卡 DNS 指向它，查询经 TCP 53 转发到上游。");
         Console.WriteLine("日志： " + LogFile);
+        Console.WriteLine();
+        Console.WriteLine("提示：直接双击本程序（不带参数）= 运行 install，会先问一句再开始。");
     }
 
     // ---------------------------------------------------------------- 权限
